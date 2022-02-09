@@ -128,7 +128,7 @@ class LocationFixer:
         print('Filtering photos by missing location...')
         for file, file_containing_folder_path, file_name_without_extension, ext in self.photos:
             image = Image.open(file)
-            exif = image._getexif()
+            exif = image.getexif()
             location = exif.get(34853)
             if not location:
                 self.photos_without_location.append(
