@@ -146,11 +146,18 @@ class LocationFixer:
         print('Filtering photos by fixable locations...')
         for file, file_containing_folder_path, file_name_without_extension, ext, exif in self.photos_without_location:
             time_exif = exif.get(36867)
+            if not time_exif:
+                time_exif = exif.get(306)
             if time_exif:
                 try:
                     time_jpeg_unix = time.mktime(datetime.datetime.strptime(time_exif, "%Y:%m:%d %H:%M:%S").timetuple())
                 except ValueError:
-                    time_jpeg_unix = time.mktime(datetime.datetime.strptime(time_exif, "%Y/%m/%d %H:%M:%S").timetuple())
+                    try:
+                        time_jpeg_unix = time.mktime(datetime.datetime.strptime(time_exif, "%Y/%m/%d %H:%M:%S").timetuple())
+                    except Exception as e:
+                        print(f"Issue with parsing datetime from picture's exif timestamp\nFile: {file}")
+                        print(time_exif)
+                        continue
 
                 curr_loc = Location()
                 curr_loc.timestamp = int(time_jpeg_unix)
