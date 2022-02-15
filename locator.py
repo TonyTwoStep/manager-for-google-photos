@@ -194,6 +194,13 @@ class LocationFixer:
                 piexif.GPSIFD.GPSLongitude: exiv_lng, piexif.GPSIFD.GPSLongitudeRef: lng_deg[3]
             }
 
+            # "dump" got wrong type of exif value.\n41729 in Exif IFD. Got as <class \'int\'>.
+            # See bug https://github.com/hMatoba/Piexif/issues/95
+            try:
+                del exif_dict['Exif'][piexif.ExifIFD.SceneType]
+            except:
+                pass
+
             exif_bytes = piexif.dump(exif_dict)
             img.save(file, exif=exif_bytes)
 
