@@ -14,8 +14,13 @@ from PIL import Image
 class Location(object):
     def __init__(self, d=None):
         for key in d or {}:
-            if key == 'timestampMs':
-                self.timestamp = int(d[key]) / 1000
+            if key == 'timestamp':
+                try:
+                    datetime_parsed = datetime.datetime.strptime(d[key], "%Y-%m-%dT%H:%M:%S.%fZ")
+                except ValueError:
+                    datetime_parsed = datetime.datetime.strptime(d[key], "%Y-%m-%dT%H:%M:%SZ")
+                datetime_parsed.replace(tzinfo=datetime.timezone.utc)
+                self.timestamp = datetime.datetime.timestamp(datetime_parsed)
             elif key == 'latitudeE7':
                 self.latitude = d[key]
             elif key == 'longitudeE7':
