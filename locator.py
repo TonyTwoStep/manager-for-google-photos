@@ -14,8 +14,13 @@ from PIL import Image
 class Location(object):
     def __init__(self, d=None):
         for key in d or {}:
-            if key == 'timestampMs':
-                self.timestamp = int(d[key]) / 1000
+            if key == 'timestamp':
+                try:
+                    datetime_parsed = datetime.datetime.strptime(d[key], "%Y-%m-%dT%H:%M:%S.%fZ")
+                except ValueError:
+                    datetime_parsed = datetime.datetime.strptime(d[key], "%Y-%m-%dT%H:%M:%SZ")
+                datetime_parsed.replace(tzinfo=datetime.timezone.utc)
+                self.timestamp = datetime.datetime.timestamp(datetime_parsed)
             elif key == 'latitudeE7':
                 self.latitude = d[key]
             elif key == 'longitudeE7':
@@ -82,7 +87,7 @@ def change_to_rational(number):
 
 class LocationFixer:
     INCLUDED_EXTENSIONS = ['.jpg', '.JPG', '.jpeg', '.JPEG']
-    HOURS_THRESHOLD = 3
+    HOURS_THRESHOLD = 9
 
     def __init__(self, photos_folder_path, locations_file_path):
         self.photos_folder_path = photos_folder_path
@@ -129,6 +134,7 @@ class LocationFixer:
         for file, file_containing_folder_path, file_name_without_extension, ext in self.photos:
             image = Image.open(file)
             exif = image.getexif()
+
             location = exif.get(34853)
             if not location:
                 self.photos_without_location.append(
@@ -140,11 +146,18 @@ class LocationFixer:
         print('Filtering photos by fixable locations...')
         for file, file_containing_folder_path, file_name_without_extension, ext, exif in self.photos_without_location:
             time_exif = exif.get(36867)
+            if not time_exif:
+                time_exif = exif.get(306)
             if time_exif:
                 try:
                     time_jpeg_unix = time.mktime(datetime.datetime.strptime(time_exif, "%Y:%m:%d %H:%M:%S").timetuple())
                 except ValueError:
-                    time_jpeg_unix = time.mktime(datetime.datetime.strptime(time_exif, "%Y/%m/%d %H:%M:%S").timetuple())
+                    try:
+                        time_jpeg_unix = time.mktime(datetime.datetime.strptime(time_exif, "%Y/%m/%d %H:%M:%S").timetuple())
+                    except Exception as e:
+                        print(f"Issue with parsing datetime from picture's exif timestamp\nFile: {file}")
+                        print(time_exif)
+                        continue
 
                 curr_loc = Location()
                 curr_loc.timestamp = int(time_jpeg_unix)
@@ -180,6 +193,13 @@ class LocationFixer:
                 piexif.GPSIFD.GPSLatitude: exiv_lat, piexif.GPSIFD.GPSLatitudeRef: lat_deg[3],
                 piexif.GPSIFD.GPSLongitude: exiv_lng, piexif.GPSIFD.GPSLongitudeRef: lng_deg[3]
             }
+
+            # "dump" got wrong type of exif value.\n41729 in Exif IFD. Got as <class \'int\'>.
+            # See bug https://github.com/hMatoba/Piexif/issues/95
+            try:
+                del exif_dict['Exif'][piexif.ExifIFD.SceneType]
+            except:
+                pass
 
             exif_bytes = piexif.dump(exif_dict)
             img.save(file, exif=exif_bytes)
